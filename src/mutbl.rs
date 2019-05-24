@@ -6,12 +6,12 @@ pub struct Mut<T> {
 }
 
 impl<T> Mut<T> {
-    pub fn new(value: T) {
+    pub fn new(value: T) -> Self {
         Mut { data: Cell::new(value) }
     }
 
     pub fn replace(&self, new_value: T) -> T {
-        self.data.swap(new_value)
+        self.data.replace(new_value)
     }
 
     pub fn get(&self) -> T
@@ -29,11 +29,11 @@ impl<T> Mut<T> {
         ptr.clone()
     }
 
-    pub fn set(&self, new_value: T) -> T {
+    pub fn set(&self, new_value: T) {
         self.data.set(new_value)
     }
 
-    pub fn swap(&self, new_value: &Mut<T>) -> T {
+    pub fn swap(&self, new_value: &Mut<T>) {
         self.data.swap(&new_value.data)
     }
 }
