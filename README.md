@@ -4,6 +4,15 @@ This repository contains a thought experiment around how to make
 working with shared, mutable data more ergonomic. My goal is to enable
 a "Java-like" model -- though with a few extensions.
 
+This crate uses unsafe code for efficiency, but the most important
+thing is actually the "API surface" that it exports: in particular, it
+tries to encourage a style of working with shared data where you are
+never getting references to the contents, but instead copying things
+out. This avoids the memory safety hazards associated with sharing.
+(In fact, one could do a safe implementation that avoids the unsafe
+code, at the cost of some dynamic checks; this may be a good
+trade-off.)
+
 ## Java-like
 
 In Java, values break down into two categories:
@@ -109,5 +118,4 @@ agreed to.**
 
 For example, we assume that `vec.push(...)` will never mutate any
 cells (that it is "pure" in the sense of pure cloning).
-
 
