@@ -77,7 +77,10 @@ fetch the value with index `3`. Similarly, iterating over a
 `MutVec<T>` yields up values of type `T` (as opposed to `&T`, for a
 standard vector).
 
-I intend to implement a `MutMap` type but didn't get around to it. =) 
+I intend to implement a `MutMap` type but didn't get around to it. =)
+One obstacle though is that we would need to have a stronger notion of
+purity (see the next section). Notably, we would need to ensure that
+the `Hash` and `Eq` traits are 'purely' implemented.
 
 ## "Pure cloning"
 
