@@ -32,6 +32,17 @@ impl<T> MutVec<T> {
         vec.len()
     }
 
+    /// The equivalent of `self[index]` -- load the element at the
+    /// given index, panicking if there is no such element.
+    pub fn at(&self, index: usize) -> T
+    where
+        T: PureClone,
+    {
+        self.get(index).unwrap()
+    }
+
+    /// Attempt to get the element at the given `index`, returning
+    /// `None` if it is out of bounds.
     pub fn get(&self, index: usize) -> Option<T>
     where
         T: PureClone,
@@ -45,6 +56,7 @@ impl<T> MutVec<T> {
         Some(vec.get(index)?.clone())
     }
 
+    /// Push `value` onto the end of the vector.
     pub fn push(&self, value: T) {
         let vec: *mut Vec<T> = self.data.as_ptr();
 
@@ -54,6 +66,7 @@ impl<T> MutVec<T> {
         vec.push(value);
     }
 
+    /// Pop a value from the end of the vector, if any.
     pub fn pop(&self) -> Option<T> {
         let vec: *mut Vec<T> = self.data.as_ptr();
 
