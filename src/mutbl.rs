@@ -46,4 +46,3 @@ impl<T> Mut<T> {
     }
 }
 
-mod vec;
