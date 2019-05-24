@@ -7,7 +7,9 @@ pub struct Mut<T> {
 
 impl<T> Mut<T> {
     pub fn new(value: T) -> Self {
-        Mut { data: Cell::new(value) }
+        Mut {
+            data: Cell::new(value),
+        }
     }
 
     pub fn replace(&self, new_value: T) -> T {
@@ -36,4 +38,12 @@ impl<T> Mut<T> {
     pub fn swap(&self, new_value: &Mut<T>) {
         self.data.swap(&new_value.data)
     }
+
+    /// Access the interior data as a raw pointer, bypassing the safe
+    /// abstraction -- not to be used lightly!
+    pub fn as_ptr(&self) -> *mut T {
+        self.data.as_ptr()
+    }
 }
+
+mod vec;
