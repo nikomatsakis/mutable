@@ -2,7 +2,7 @@ use crate::mcell::MCell;
 use std::vec::Vec;
 
 pub struct MutVec<T> {
-    data: MCell<Vec<T>>
+    data: MCell<Vec<T>>,
 }
 
 impl<T> MutVec<T> {
@@ -52,9 +52,13 @@ impl<T> MutVec<T> {
     /// it). Doing so may lead to surprising results but is not
     /// undefined behavior in any way.
     pub fn iter(&self) -> MutVecIter<'_, T>
-    where T: Clone
+    where
+        T: Clone,
     {
-        MutVecIter { vec: self, index: 0 }
+        MutVecIter {
+            vec: self,
+            index: 0,
+        }
     }
 
     /// Take ownership of our internal vector, replacing it with `v`.
@@ -79,7 +83,7 @@ impl<T: Clone> Clone for MutVec<T> {
 impl<A> std::iter::FromIterator<A> for MutVec<A> {
     fn from_iter<T>(iter: T) -> Self
     where
-        T: IntoIterator<Item = A>
+        T: IntoIterator<Item = A>,
     {
         let v: Vec<A> = iter.into_iter().collect();
         MutVec::from(v)
@@ -94,7 +98,9 @@ impl<T> Default for MutVec<T> {
 
 impl<T> From<Vec<T>> for MutVec<T> {
     fn from(v: Vec<T>) -> MutVec<T> {
-        MutVec { data: MCell::new(v) }
+        MutVec {
+            data: MCell::new(v),
+        }
     }
 }
 
@@ -106,7 +112,10 @@ where
     index: usize,
 }
 
-impl<'iter, T> Iterator for MutVecIter<'iter, T> where T: Clone {
+impl<'iter, T> Iterator for MutVecIter<'iter, T>
+where
+    T: Clone,
+{
     type Item = T;
 
     fn next(&mut self) -> Option<T> {
@@ -132,9 +141,5 @@ fn iter1() {
         results.push(v.pop());
     }
 
-    assert_eq!(
-        results,
-        vec![Some(22), Some(66), Some(44), Some(44)],
-    );
+    assert_eq!(results, vec![Some(22), Some(66), Some(44), Some(44)],);
 }
-

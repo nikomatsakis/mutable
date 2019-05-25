@@ -26,4 +26,3 @@ impl<T> Mut<T> {
         self.data.set(new_value)
     }
 }
-
