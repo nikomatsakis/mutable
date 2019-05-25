@@ -1,14 +1,13 @@
-use crate::pure_clone::PureClone;
-use std::cell::Cell;
+use crate::mcell::MCell;
 
 pub struct Mut<T> {
-    data: Cell<T>,
+    data: MCell<T>,
 }
 
 impl<T> Mut<T> {
     pub fn new(value: T) -> Self {
         Mut {
-            data: Cell::new(value),
+            data: MCell::new(value),
         }
     }
 
@@ -18,31 +17,13 @@ impl<T> Mut<T> {
 
     pub fn get(&self) -> T
     where
-        T: PureClone,
+        T: Clone,
     {
-        let ptr: *mut T = self.data.as_ptr();
-
-        // Unsafe proof obligation: We need to know that nobody will
-        // mutate the data in `self.data`. Altough we are invoking a
-        // user-supplied clone, pure-clone gives us this obligation.
-        //
-        // TODO -- express this more cleanly =)
-        let ptr: &T = unsafe { &*ptr };
-        ptr.clone()
+        self.data.borrow().clone()
     }
 
     pub fn set(&self, new_value: T) {
         self.data.set(new_value)
-    }
-
-    pub fn swap(&self, new_value: &Mut<T>) {
-        self.data.swap(&new_value.data)
-    }
-
-    /// Access the interior data as a raw pointer, bypassing the safe
-    /// abstraction -- not to be used lightly!
-    pub fn as_ptr(&self) -> *mut T {
-        self.data.as_ptr()
     }
 }
 

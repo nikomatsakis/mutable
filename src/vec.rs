@@ -1,21 +1,8 @@
-// [1] Unsafe obligations: In each of these cases, we need to know
-// that invoking the vec methods will never access this cell in any
-// way (neither get nor set). This is in some sense a bit dubious
-// because the stdlib doesn't really make any such promise. But of
-// course we know that, in practice, it does not.
-//
-// (This, btw, is an interesting case where being able to reason about
-// parametricity might help -- i.e., we know that `push` has very
-// limited bounds, so we might be able to reason from those bounds --
-// but of course, with specialization, Vec could dynamically detect
-// new capabilities and make use of them.)
-
-use crate::pure_clone::PureClone;
+use crate::mcell::MCell;
 use std::vec::Vec;
-use std::cell::Cell;
 
 pub struct MutVec<T> {
-    data: Cell<Vec<T>>
+    data: MCell<Vec<T>>
 }
 
 impl<T> MutVec<T> {
@@ -24,19 +11,14 @@ impl<T> MutVec<T> {
     }
 
     pub fn len(&self) -> usize {
-        let vec: *mut Vec<T> = self.data.as_ptr();
-
-        // Unsafe obligation: See [1] above
-        let vec: &Vec<T> = unsafe { &mut *vec };
-
-        vec.len()
+        self.data.borrow().len()
     }
 
     /// The equivalent of `self[index]` -- load the element at the
     /// given index, panicking if there is no such element.
     pub fn at(&self, index: usize) -> T
     where
-        T: PureClone,
+        T: Clone,
     {
         self.get(index).unwrap()
     }
@@ -45,35 +27,22 @@ impl<T> MutVec<T> {
     /// `None` if it is out of bounds.
     pub fn get(&self, index: usize) -> Option<T>
     where
-        T: PureClone,
+        T: Clone,
     {
-        let vec: *mut Vec<T> = self.data.as_ptr();
-
-        // Unsafe obligation: See [1] above; also, we know that
-        // `T::clone` is "pure".
-        let vec: &Vec<T> = unsafe { &mut *vec };
-
-        Some(vec.get(index)?.clone())
+        let data = self.data.borrow();
+        Some(data.get(index)?.clone())
     }
 
     /// Push `value` onto the end of the vector.
     pub fn push(&self, value: T) {
-        let vec: *mut Vec<T> = self.data.as_ptr();
-
-        // Unsafe obligation: See [1] above
-        let vec: &mut Vec<T> = unsafe { &mut *vec };
-
-        vec.push(value);
+        let mut data = self.data.borrow_mut();
+        data.push(value);
     }
 
     /// Pop a value from the end of the vector, if any.
     pub fn pop(&self) -> Option<T> {
-        let vec: *mut Vec<T> = self.data.as_ptr();
-
-        // Unsafe obligation: See [1] above
-        let vec: &mut Vec<T> = unsafe { &mut *vec };
-
-        vec.pop()
+        let mut data = self.data.borrow_mut();
+        data.pop()
     }
 
     /// Iterate over the elements in `self`, cloning them as we go.
@@ -83,7 +52,7 @@ impl<T> MutVec<T> {
     /// it). Doing so may lead to surprising results but is not
     /// undefined behavior in any way.
     pub fn iter(&self) -> MutVecIter<'_, T>
-    where T: PureClone
+    where T: Clone
     {
         MutVecIter { vec: self, index: 0 }
     }
@@ -100,22 +69,11 @@ impl<T> MutVec<T> {
     }
 }
 
-impl<T: PureClone> Clone for MutVec<T> {
+impl<T: Clone> Clone for MutVec<T> {
     fn clone(&self) -> Self {
-        let vec: *mut Vec<T> = self.data.as_ptr();
-
-        // Unsafe obligation: See [1] above; also, we know that
-        // `T::clone` is "pure".
-        let vec: &Vec<T> = unsafe { &mut *vec };
-
+        let vec = self.data.borrow().clone();
         MutVec::from(vec.clone())
     }
-}
-
-// Unsafe obligation: we know that `Vec<T>` is pure-clone, so cloning
-// it (which is what we do...) cannot affect any of its transitive
-// owners (us).
-unsafe impl<T: PureClone> PureClone for MutVec<T> {
 }
 
 impl<A> std::iter::FromIterator<A> for MutVec<A> {
@@ -136,19 +94,19 @@ impl<T> Default for MutVec<T> {
 
 impl<T> From<Vec<T>> for MutVec<T> {
     fn from(v: Vec<T>) -> MutVec<T> {
-        MutVec { data: Cell::new(v) }
+        MutVec { data: MCell::new(v) }
     }
 }
 
 pub struct MutVecIter<'iter, T>
 where
-    T: PureClone,
+    T: Clone,
 {
     vec: &'iter MutVec<T>,
     index: usize,
 }
 
-impl<'iter, T> Iterator for MutVecIter<'iter, T> where T: PureClone {
+impl<'iter, T> Iterator for MutVecIter<'iter, T> where T: Clone {
     type Item = T;
 
     fn next(&mut self) -> Option<T> {
