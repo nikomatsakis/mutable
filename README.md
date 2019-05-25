@@ -87,35 +87,21 @@ fetch the value with index `3`. Similarly, iterating over a
 standard vector).
 
 I intend to implement a `MutMap` type but didn't get around to it. =)
-One obstacle though is that we would need to have a stronger notion of
-purity (see the next section). Notably, we would need to ensure that
-the `Hash` and `Eq` traits are 'purely' implemented.
+It's a *bit* trickier than vec and will require that we sometimes swap
+the map into a local variable (notably during the `insert` operation).
 
-## "Pure cloning"
+## "Pure" operations
 
-One key concept in the library is the `PureClone` marker trait.  In
-particular, the main thing that the `Mut` type offers above `Cell` is
-that if you have a `Mut<Rc<T>>` value, you can still use `get()`, even
-though `T: Copy` does not hold. The intuition here is that cloning an
-`Rc<T>` is only going to increment the ref count and is never going to
-mutate the cell.
-
-This intuition is captured in the `PureClone` trait -- it is an unsafe
-trait, and it declares that invoking `Clone::clone` on a value `v: T`
-will never mutate any cells that (transitively) contain `v`. This is
-basically always true in all realistic clone implementations, but is
-not formally guaranteed.
+A key assumption of the library is that operations like Clone, Hash,
+and Eq are, in practice, "pure" -- meaning that they do not mutate any
+mutable cells. We can't actually **know** that this is true, however,
+so we enforce the constraint with a light-weight dynamic check. Thus,
+if you write a `Clone` impl which mutates the data in one of the types
+from this library (e.g., a `Mut<T>` or `MutVec<T>`), you will get
+panics. Reading data from a `Mut<T>` etc should be fine though.
 
 ## Stability caveats
 
-This code is **not for production use** (at least not yet). For one
-thing, it is something I dashed off in an airport. It also depends on
-the nightly feature that enables overlapping marker traits for
-ergonomics. **Finally, and most importantly, it makes some assumptions
-about standard library types for its soundness guarantees -- these are
-assumptions that *I* think are reasonable but which are not formally
-agreed to.**
-
-For example, we assume that `vec.push(...)` will never mutate any
-cells (that it is "pure" in the sense of pure cloning).
-
+This code is sometihng I dashed off in an airport and is **not (quite)
+ready for production use**.  I'd like to study the unsafe code a bit
+harder first. =)

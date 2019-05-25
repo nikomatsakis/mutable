@@ -1,5 +1,3 @@
-#![feature(marker_trait_attr)]
-
 mod mcell;
 mod mutbl;
 mod vec;

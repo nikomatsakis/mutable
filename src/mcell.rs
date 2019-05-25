@@ -6,6 +6,8 @@ use std::ops::DerefMut;
 /// that these operations simultaneously lock/unlock **all the cells
 /// accessible to this thread**.  So if you do `cell.borrow()`, then
 /// *all* MCell's are borrowed.
+///
+/// It exposes a **safe interface**.
 pub(crate) struct MCell<T> {
     data: Cell<T>,
 }
@@ -53,6 +55,9 @@ fn assert_unlocked() {
 }
 
 impl<T> MCell<T> {
+    /// Acquire shared access to this mcell -- but at the cost that
+    /// the current thread cannot mutate **any other mcells** while
+    /// the borrow is active.
     pub(crate) fn borrow(&self) -> ShareGuard<'_, T> {
         acquire_read_lock();
 
@@ -122,6 +127,9 @@ impl<'me, T> Drop for ShareGuard<'me, T> {
 }
 
 impl<T> MCell<T> {
+    /// Acquire mutable access to this mcell -- but at the cost that
+    /// the current thread cannot access (read or write) **any other
+    /// mcells** while the borrow is active.
     pub(crate) fn borrow_mut(&self) -> MutGuard<'_, T> {
         acquire_write_lock();
 
