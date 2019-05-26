@@ -2,6 +2,8 @@ use std::cell::Cell;
 use std::ops::Deref;
 use std::ops::DerefMut;
 
+mod lock;
+
 /// Like a std cell, but supports borrow operations. The key thing is
 /// that these operations simultaneously lock/unlock **all the cells
 /// accessible to this thread**.  So if you do `cell.borrow()`, then
@@ -23,35 +25,19 @@ impl<T> MCell<T> {
     where
         T: Default,
     {
-        assert_unlocked();
+        lock::assert_unlocked();
         self.data.take()
     }
 
     pub(crate) fn set(&self, value: T) {
-        assert_unlocked();
+        lock::assert_unlocked();
         self.data.set(value)
     }
 
     pub(crate) fn replace(&self, value: T) -> T {
-        assert_unlocked();
+        lock::assert_unlocked();
         self.data.replace(value)
     }
-}
-
-thread_local! {
-    static THREAD_LOCK: Cell<u32> = Cell::new(0);
-}
-
-const WRITE_LOCK: u32 = std::u32::MAX;
-
-fn assert_unlocked() {
-    THREAD_LOCK.with(|lock| {
-        let v = lock.get();
-
-        if v != 0 {
-            panic!("cannot modify mutable data right now, lock is held");
-        }
-    });
 }
 
 impl<T> MCell<T> {
@@ -59,35 +45,11 @@ impl<T> MCell<T> {
     /// the current thread cannot mutate **any other mcells** while
     /// the borrow is active.
     pub(crate) fn borrow(&self) -> ShareGuard<'_, T> {
-        acquire_read_lock();
+        lock::acquire_read_lock();
 
         // Unsafe proof obligation: we must hold the read-lock.
         unsafe { ShareGuard::new(self, self.data.as_ptr()) }
     }
-}
-
-fn acquire_read_lock() {
-    THREAD_LOCK.with(|lock| {
-        let v = lock.get();
-
-        if v == WRITE_LOCK {
-            panic!("cannot read from a Mut cell now");
-        }
-
-        if v == WRITE_LOCK - 1 {
-            panic!("too many readers");
-        }
-
-        lock.set(v + 1);
-    });
-}
-
-fn release_read_lock() {
-    THREAD_LOCK.with(|lock| {
-        let v = lock.get();
-        assert!(v > 0 && v != WRITE_LOCK);
-        lock.set(v - 1);
-    });
 }
 
 pub(crate) struct ShareGuard<'me, T> {
@@ -99,11 +61,10 @@ impl<'me, T> ShareGuard<'me, T> {
     /// Create a new share-guard.
     ///
     /// Unsafe proof obligation:
-    /// - the read lock must be held, and
+    /// - the read lock must be held (and delegated to us), and
     /// - `data` must come from `_cell`.
     unsafe fn new(_cell: &'me MCell<T>, data: *const T) -> Self {
-        debug_assert!(THREAD_LOCK.with(|lock| lock.get() > 0));
-        debug_assert_ne!(THREAD_LOCK.with(|lock| lock.get()), WRITE_LOCK);
+        lock::debug_assert_read_locked();
 
         // The write lock is held so long as we exist, so will retain
         // unique access to `*data`. Moreover, we will assign it a
@@ -126,7 +87,7 @@ impl<'me, T> Deref for ShareGuard<'me, T> {
 
 impl<'me, T> Drop for ShareGuard<'me, T> {
     fn drop(&mut self) {
-        release_read_lock();
+        lock::release_read_lock();
     }
 }
 
@@ -135,18 +96,11 @@ impl<T> MCell<T> {
     /// the current thread cannot access (read or write) **any other
     /// mcells** while the borrow is active.
     pub(crate) fn borrow_mut(&self) -> MutGuard<'_, T> {
-        acquire_write_lock();
+        lock::acquire_write_lock();
 
         // Proof obligation: we must hold the write-lock.
         unsafe { MutGuard::new(self, self.data.as_ptr()) }
     }
-}
-
-fn acquire_write_lock() {
-    THREAD_LOCK.with(|lock| {
-        assert!(lock.get() == 0, "lock already held");
-        lock.set(WRITE_LOCK);
-    });
 }
 
 pub(crate) struct MutGuard<'me, T> {
@@ -158,10 +112,10 @@ impl<'me, T> MutGuard<'me, T> {
     /// Create a new mut-guard.
     ///
     /// Unsafe proof obligation:
-    /// - the write lock must be held, and
+    /// - the write lock must be held (and delegated to us), and
     /// - `data` must come from `_cell`.
     unsafe fn new(_cell: &'me MCell<T>, data: *mut T) -> Self {
-        debug_assert_eq!(THREAD_LOCK.with(|lock| lock.get()), WRITE_LOCK);
+        lock::debug_assert_write_locked();
 
         // The write lock is held so long as we exist, so will retain
         // unique access to `*data`. Moreover, we will assign it a
@@ -190,11 +144,7 @@ impl<'me, T> DerefMut for MutGuard<'me, T> {
 
 impl<'me, T> Drop for MutGuard<'me, T> {
     fn drop(&mut self) {
-        THREAD_LOCK.with(|lock| {
-            let v = lock.get();
-            assert!(v == WRITE_LOCK);
-            lock.set(0);
-        });
+        lock::release_write_lock();
     }
 }
 
@@ -204,8 +154,11 @@ impl<T: Default> MCell<T> {
     /// particular cell in that time will encounter the `T::Default`
     /// value.
     pub(crate) fn check_out(&self) -> CheckOutGuard<'_, T> {
-        assert_unlocked();
+        lock::assert_unlocked();
+        lock::acquire_read_lock();
         let data = self.data.take();
+
+        // Unsafe proof obligation: we acquired read-lock above.
         unsafe { CheckOutGuard::new(self, data) }
     }
 
@@ -215,7 +168,7 @@ impl<T: Default> MCell<T> {
     /// value. **This variant does not restore `self.data` on panic,
     /// but simply leaves the default value.**
     pub(crate) fn check_out_not_panic_safe<R>(&self, closure: impl FnOnce(&mut T) -> R) -> R {
-        assert_unlocked();
+        lock::assert_unlocked();
         let mut data = self.data.take();
         let _cell = self.borrow();
         let result = closure(&mut data);
@@ -230,16 +183,12 @@ pub(crate) struct CheckOutGuard<'me, T: Default> {
 }
 
 impl<'me, T: Default> CheckOutGuard<'me, T> {
-    /// Create a new mut-guard.
+    /// Create a new check-out-guard.
     ///
     /// Unsafe proof obligation:
-    /// - the write lock must be held, and
-    /// - `data` must come from `_cell`.
+    /// - the read lock must be held (and delegated to us).
     unsafe fn new(cell: &'me MCell<T>, data: T) -> Self {
-        debug_assert_ne!(THREAD_LOCK.with(|lock| lock.get()), WRITE_LOCK);
-        debug_assert!(THREAD_LOCK.with(|lock| lock.get()) > 0);
-
-        acquire_read_lock();
+        lock::debug_assert_read_locked();
 
         // The write lock is held so long as we exist, so will retain
         // unique access to `*data`. Moreover, we will assign it a
@@ -265,7 +214,7 @@ impl<'me, T: Default> DerefMut for CheckOutGuard<'me, T> {
 
 impl<'me, T: Default> Drop for CheckOutGuard<'me, T> {
     fn drop(&mut self) {
-        release_read_lock();
+        lock::release_read_lock();
 
         // Annoyingly, drop has an `&mut self` type that forbids us
         // from taking ownership of `self.data`, so swap the data back.
