@@ -53,11 +53,11 @@ impl<T> MutVec<T> {
     /// iteration (for example, by pushing or popping elements onto
     /// it). Doing so may lead to surprising results but is not
     /// undefined behavior in any way.
-    pub fn iter(&self) -> MutVecIter<'_, T>
+    pub fn iter(&self) -> Iter<'_, T>
     where
         T: Clone,
     {
-        MutVecIter {
+        Iter {
             vec: self,
             index: 0,
         }
@@ -106,7 +106,7 @@ impl<T> From<Vec<T>> for MutVec<T> {
     }
 }
 
-pub struct MutVecIter<'iter, T>
+pub struct Iter<'iter, T>
 where
     T: Clone,
 {
@@ -114,7 +114,7 @@ where
     index: usize,
 }
 
-impl<'iter, T> Iterator for MutVecIter<'iter, T>
+impl<'iter, T> Iterator for Iter<'iter, T>
 where
     T: Clone,
 {
