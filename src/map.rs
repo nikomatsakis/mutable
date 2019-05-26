@@ -21,43 +21,38 @@ where
         self.data.borrow().len()
     }
 
+    /// Inserts `(key, value)` into the map. During the insertion
+    /// operation, all mut-cells are locked and read-only. Attempts to
+    /// read from *this* map during insertion will encounter an empty
+    /// map.
     pub fn insert(&self, key: K, value: V) -> Option<V> {
-        // Subtle: we cannot use borrow_mut because the hashing
-        // etc might need read access to some cells. So take local
-        // ownership.
-        let mut data = self.data.replace(IndexMap::default());
-
-        let result = {
-            let _read_lock = self.data.borrow();
-            data.insert(key, value)
-        };
-
-        // restore the map; note that we held read lock above, so
-        // nobody can have inserted anything.
-        self.data.replace(data);
-
-        result
+        self.data.check_out().insert(key, value)
     }
 
+    /// Removes `key` from the map. During the removal operation, all
+    /// mut-cells are locked and read-only. Attempts to read from
+    /// *this* map during removal will encounter an empty map.
     pub fn remove<Q: ?Sized>(&mut self, key: &Q) -> Option<V>
     where
         Q: Hash + Equivalent<K>,
     {
-        // Subtle: we cannot use borrow_mut because the hashing
-        // etc might need read access to some cells. So take local
-        // ownership.
-        let mut data = self.data.replace(IndexMap::default());
+        self.data.check_out().remove(key)
+    }
 
-        let result = {
-            let _read_lock = self.data.borrow();
-            data.remove(key)
-        };
+    /// A variant on `insert` where all data is lost on panic. This
+    /// exists for benchmarking purposes.
+    pub fn insert_not_panic_safe(&self, key: K, value: V) -> Option<V> {
+        self.data
+            .check_out_not_panic_safe(|data| data.insert(key, value))
+    }
 
-        // restore the map; note that we held read lock above, so
-        // nobody can have inserted anything.
-        self.data.replace(data);
-
-        result
+    /// A variant on `insert` where all data is lost on panic. This
+    /// exists for benchmarking purposes.
+    pub fn remove_not_panic_safe<Q: ?Sized>(&mut self, key: &Q) -> Option<V>
+    where
+        Q: Hash + Equivalent<K>,
+    {
+        self.data.check_out_not_panic_safe(|data| data.remove(key))
     }
 
     pub fn get<Q: ?Sized>(&self, key: &Q) -> Option<V>

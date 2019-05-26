@@ -35,12 +35,15 @@ where
     }
 }
 
-trait MapTrait<K, V>: Default {
+trait MapTrait<K, V, Variant>: Default {
     fn insert_value(&mut self, key: K, value: V);
     fn remove_value(&mut self, key: &K);
 }
 
-impl<K, V> MapTrait<K, V> for IndexMap<K, V>
+struct Variant0;
+struct Variant1;
+
+impl<K, V> MapTrait<K, V, Variant0> for IndexMap<K, V>
 where
     K: Eq + Hash,
 {
@@ -53,7 +56,7 @@ where
     }
 }
 
-impl<K, V> MapTrait<K, V> for MutMap<K, V>
+impl<K, V> MapTrait<K, V, Variant0> for MutMap<K, V>
 where
     K: Eq + Hash,
 {
@@ -66,7 +69,23 @@ where
     }
 }
 
-fn map_insert_rand_bench<M: MapTrait<u64, u64>>(n: u64, b: &mut criterion::Bencher) {
+impl<K, V> MapTrait<K, V, Variant1> for MutMap<K, V>
+where
+    K: Eq + Hash,
+{
+    fn insert_value(&mut self, key: K, value: V) {
+        self.insert_not_panic_safe(key, value);
+    }
+
+    fn remove_value(&mut self, key: &K) {
+        self.remove_not_panic_safe(key);
+    }
+}
+
+fn map_insert_rand_bench<Variant, M: MapTrait<u64, u64, Variant>>(
+    n: u64,
+    b: &mut criterion::Bencher,
+) {
     let mut map = M::default();
 
     // setup
@@ -95,10 +114,13 @@ fn criterion_benchmark(c: &mut Criterion) {
         b.iter(|| push_data::<MutVec<u64>>(black_box(1024)))
     });
     c.bench_function("map_insert_1024_indexmap", |b| {
-        map_insert_rand_bench::<IndexMap<u64, u64>>(black_box(1024), b)
+        map_insert_rand_bench::<Variant0, IndexMap<u64, u64>>(black_box(1024), b)
     });
-    c.bench_function("map_insert_1024_mutmap", |b| {
-        map_insert_rand_bench::<MutMap<u64, u64>>(black_box(1024), b)
+    c.bench_function("map_insert_1024_mutmap0", |b| {
+        map_insert_rand_bench::<Variant0, MutMap<u64, u64>>(black_box(1024), b)
+    });
+    c.bench_function("map_insert_1024_mutmap1", |b| {
+        map_insert_rand_bench::<Variant1, MutMap<u64, u64>>(black_box(1024), b)
     });
 }
 
