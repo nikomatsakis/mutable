@@ -14,6 +14,8 @@ impl<T> MCell<T> {
 
 pub(crate) struct ShareGuard<'me, T> {
     data: &'me T,
+
+    /// Subtle: Dummy field so that `ShareGuard` is not considered `Send`.
     _thread_local: *const (),
 }
 

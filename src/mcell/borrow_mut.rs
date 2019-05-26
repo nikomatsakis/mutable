@@ -14,6 +14,8 @@ impl<T> MCell<T> {
 
 pub(crate) struct MutGuard<'me, T> {
     data: &'me mut T,
+
+    /// Subtle: Dummy field so that `MutGuard` is not considered `Send`.
     _thread_local: *const (),
 }
 
