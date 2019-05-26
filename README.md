@@ -86,9 +86,8 @@ fetch the value with index `3`. Similarly, iterating over a
 `MutVec<T>` yields up values of type `T` (as opposed to `&T`, for a
 standard vector).
 
-I intend to implement a `MutMap` type but didn't get around to it. =)
-It's a *bit* trickier than vec and will require that we sometimes swap
-the map into a local variable (notably during the `insert` operation).
+There is also a `MutMap<K, V>` type that is roughly equivalent to the
+Java type `HashMap<K, V>`.
 
 ## "Pure" operations
 
