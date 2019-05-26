@@ -39,6 +39,27 @@ where
         result
     }
 
+    pub fn remove<Q: ?Sized>(&mut self, key: &Q) -> Option<V>
+    where
+        Q: Hash + Equivalent<K>,
+    {
+        // Subtle: we cannot use borrow_mut because the hashing
+        // etc might need read access to some cells. So take local
+        // ownership.
+        let mut data = self.data.replace(IndexMap::default());
+
+        let result = {
+            let _read_lock = self.data.borrow();
+            data.remove(key)
+        };
+
+        // restore the map; note that we held read lock above, so
+        // nobody can have inserted anything.
+        self.data.replace(data);
+
+        result
+    }
+
     pub fn get<Q: ?Sized>(&self, key: &Q) -> Option<V>
     where
         Q: Hash + Equivalent<K>,
